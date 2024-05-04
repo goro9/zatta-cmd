@@ -92,8 +92,15 @@ func (h *SlackHandler) Handle(ctx context.Context, record slog.Record) error {
 		message.IconURL = h.option.IconURL
 	}
 
+	if ts := ContextThreadTimestamp(ctx); ts != "" {
+		message.ThreadTimestamp = ts
+		if ContextReplyBroadcast(ctx) {
+			message.ReplyBroadcast = true
+		}
+	}
+
 	go func() {
-		_ = h.postMessage(ctx, message)
+		_ = h.postMessage(message)
 	}()
 
 	return nil
@@ -115,24 +122,28 @@ func (h *SlackHandler) WithGroup(name string) slog.Handler {
 	}
 }
 
-func (h *SlackHandler) postMessage(ctx context.Context, message *slack.WebhookMessage) error {
-	ctx, cancel := context.WithTimeout(ctx, h.option.Timeout)
-	defer cancel()
-
+func (h *SlackHandler) postMessage(message *slack.WebhookMessage) error {
 	if h.option.WebhookURL != "" {
-		return slack.PostWebhookContext(ctx, h.option.WebhookURL, message)
+		return slack.PostWebhook(h.option.WebhookURL, message)
 	}
 
-	_, _, err := slack.
-		New(h.option.BotToken).
-		PostMessageContext(
-			ctx,
-			message.Channel,
-			slack.MsgOptionText(message.Text, true),
-			slack.MsgOptionAttachments(message.Attachments...),
-			slack.MsgOptionUsername(message.Username),
-			slack.MsgOptionIconURL(message.IconURL),
-			slack.MsgOptionIconEmoji(message.IconEmoji),
-		)
+	ctx, cancel := context.WithTimeout(context.Background(), h.option.Timeout)
+	defer cancel()
+
+	options := []slack.MsgOption{
+		slack.MsgOptionText(message.Text, true),
+		slack.MsgOptionAttachments(message.Attachments...),
+		slack.MsgOptionUsername(message.Username),
+		slack.MsgOptionIconURL(message.IconURL),
+		slack.MsgOptionIconEmoji(message.IconEmoji),
+	}
+	if message.ThreadTimestamp != "" {
+		options = append(options, slack.MsgOptionTS(message.ThreadTimestamp))
+	}
+	if message.ReplyBroadcast {
+		options = append(options, slack.MsgOptionBroadcast())
+	}
+
+	_, _, err := slack.New(h.option.BotToken).PostMessageContext(ctx, message.Channel, options...)
 	return err
 }

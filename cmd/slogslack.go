@@ -9,6 +9,7 @@ import (
 	"time"
 
 	slogslack "github.com/samber/slog-slack/v2"
+	"github.com/slack-go/slack"
 	"github.com/spf13/cobra"
 )
 
@@ -41,15 +42,15 @@ func init() {
 	// slogslackCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-var testCmd = &cobra.Command{
+var testWebhookCmd = &cobra.Command{
 	Use:  "test_webhook",
-	Args: cobra.ExactArgs(1),
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		timeout := time.Duration(3000) * time.Millisecond
 		logger := slog.New(slogslack.Option{
 			Level:      slog.LevelDebug,
 			WebhookURL: args[0],
-			Channel:    "sandbox",
+			Channel:    args[1],
 			Timeout:    timeout,
 		}.NewSlackHandler())
 
@@ -61,6 +62,41 @@ var testCmd = &cobra.Command{
 	},
 }
 
+var testBotCmd = &cobra.Command{
+	Use:  "test_bot",
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		botToken := args[0]
+		channelID := args[1]
+
+		ctx := cmd.Context()
+		_, ts, err := slack.New(botToken).PostMessageContext(ctx, channelID,
+			slack.MsgOptionText("start task", true),
+		)
+		if err != nil {
+			return err
+		}
+
+		timeout := time.Duration(3000) * time.Millisecond
+		logger := slog.New(slogslack.Option{
+			Level:    slog.LevelDebug,
+			BotToken: botToken,
+			Channel:  channelID,
+			Timeout:  timeout,
+		}.NewSlackHandler())
+
+		ctx = slogslack.WithThreadTimestamp(ctx, ts)
+
+		logger.DebugContext(ctx, "test", slog.String("test", "test"), slog.String("test2", "test2"))
+		logger.ErrorContext(slogslack.WithReplyBroadcast(ctx), "error", slog.String("error", "hogehoge"))
+		logger.InfoContext(ctx, "end task")
+
+		time.Sleep(timeout)
+		return nil
+	},
+}
+
 func init() {
-	slogslackCmd.AddCommand(testCmd)
+	slogslackCmd.AddCommand(testWebhookCmd)
+	slogslackCmd.AddCommand(testBotCmd)
 }

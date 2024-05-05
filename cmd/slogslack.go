@@ -64,7 +64,7 @@ var testWebhookCmd = &cobra.Command{
 
 var testBotCmd = &cobra.Command{
 	Use: "test_bot",
-	RunE: middleware.SlackLog(func(cmd *cobra.Command, args []string) error {
+	RunE: middleware.SlackThreadLog(func(cmd *cobra.Command, args []string) error {
 		slog.Debug("test", slog.String("test", "test"), slog.String("test2", "test2"))
 		slog.Error("error", slog.String("error", "hogehoge"))
 		slog.Info("end task")

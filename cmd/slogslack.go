@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/goro9/zatta-cmd/middleware"
 	slogslack "github.com/samber/slog-slack/v2"
 	"github.com/spf13/cobra"
 )
@@ -62,38 +63,18 @@ var testWebhookCmd = &cobra.Command{
 }
 
 var testBotCmd = &cobra.Command{
-	Use:  "test_bot",
-	Args: cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		botToken := args[0]
-		channelID := args[1]
+	Use: "test_bot",
+	RunE: middleware.SlackLog(func(cmd *cobra.Command, args []string) error {
+		slog.Debug("test", slog.String("test", "test"), slog.String("test2", "test2"))
+		slog.Error("error", slog.String("error", "hogehoge"))
+		slog.Info("end task")
 
-		// ctx := cmd.Context()
-		// _, ts, err := slack.New(botToken).PostMessageContext(ctx, channelID,
-		// 	slack.MsgOptionText("start task", true),
-		// )
-		// if err != nil {
-		// 	return err
-		// }
-
-		timeout := time.Duration(3000) * time.Millisecond
-		logger := slog.New(slogslack.Option{
-			Level:    slog.LevelDebug,
-			BotToken: botToken,
-			Channel:  channelID,
-			Timeout:  timeout,
-		}.NewSlackHandler())
-
-		logger.Debug("test", slog.String("test", "test"), slog.String("test2", "test2"))
-		logger.Error("error", slog.String("error", "hogehoge"))
-		logger.Info("end task")
-
-		time.Sleep(timeout)
 		return nil
-	},
+	}),
 }
 
 func init() {
 	slogslackCmd.AddCommand(testWebhookCmd)
 	slogslackCmd.AddCommand(testBotCmd)
+	middleware.SlackLogFlags(testBotCmd)
 }
